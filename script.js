@@ -14,7 +14,8 @@ class Game {
         
         this.keys = {};
         this.lastEnemySpawn = 0;
-        this.enemySpawnRate = 1000; // 1 секунда
+        this.enemySpawnRate = 1000;
+        this.lastTimestamp = 0;
         
         this.setupEventListeners();
         this.menu = document.getElementById('menu');
@@ -23,6 +24,22 @@ class Game {
         
         this.resize();
         window.addEventListener('resize', () => this.resize());
+        
+        // Создаем звезды для фона
+        this.stars = this.createStars(100);
+    }
+    
+    createStars(count) {
+        const stars = [];
+        for (let i = 0; i < count; i++) {
+            stars.push({
+                x: Math.random() * this.canvas.width,
+                y: Math.random() * this.canvas.height,
+                size: Math.random() * 2 + 1,
+                speed: Math.random() * 0.5 + 0.1
+            });
+        }
+        return stars;
     }
     
     startGame() {
@@ -34,6 +51,7 @@ class Game {
         this.particles = [];
         this.player = new Player(this);
         this.updateScore();
+        this.lastTimestamp = performance.now();
         this.loop();
     }
     
@@ -59,13 +77,20 @@ class Game {
     }
     
     loop(timestamp) {
-        if (this.gameOver) return this.showGameOver();
+        const deltaTime = timestamp - this.lastTimestamp;
+        this.lastTimestamp = timestamp;
         
+        if (this.gameOver) {
+            this.showGameOver();
+            return;
+        }
+        
+        // Очистка canvas
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // Фон с звездами
-        this.drawStars();
+        // Отрисовка звезд
+        this.drawStars(deltaTime);
         
         // Спавн врагов
         if (timestamp - this.lastEnemySpawn > this.enemySpawnRate) {
@@ -74,33 +99,38 @@ class Game {
         }
         
         // Обновление и отрисовка объектов
-        this.player.update();
+        this.player.update(deltaTime);
         this.player.draw();
         
-        this.updateEnemies();
-        this.updateParticles();
+        this.updateEnemies(deltaTime);
+        this.updateParticles(deltaTime);
         this.checkCollisions();
         
         requestAnimationFrame((ts) => this.loop(ts));
     }
     
-    drawStars() {
+    drawStars(deltaTime) {
         this.ctx.fillStyle = '#ffffff';
-        for (let i = 0; i < 50; i++) {
-            const x = Math.random() * this.canvas.width;
-            const y = (Math.random() * this.canvas.height + timestamp * 0.1) % this.canvas.height;
-            this.ctx.fillRect(x, y, 1, 1);
-        }
+        this.stars.forEach(star => {
+            star.y += star.speed * (deltaTime / 16);
+            if (star.y > this.canvas.height) {
+                star.y = 0;
+                star.x = Math.random() * this.canvas.width;
+            }
+            this.ctx.beginPath();
+            this.ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+            this.ctx.fill();
+        });
     }
     
     spawnEnemy() {
-        const x = Math.random() * (this.canvas.width - 50);
+        const x = Math.random() * (this.canvas.width - 40);
         this.enemies.push(new Enemy(this, x));
     }
     
-    updateEnemies() {
+    updateEnemies(deltaTime) {
         for (let i = this.enemies.length - 1; i >= 0; i--) {
-            this.enemies[i].update();
+            this.enemies[i].update(deltaTime);
             this.enemies[i].draw();
             
             if (this.enemies[i].y > this.canvas.height) {
@@ -111,9 +141,9 @@ class Game {
         }
     }
     
-    updateParticles() {
+    updateParticles(deltaTime) {
         for (let i = this.particles.length - 1; i >= 0; i--) {
-            this.particles[i].update();
+            this.particles[i].update(deltaTime);
             this.particles[i].draw();
             
             if (this.particles[i].alpha <= 0) {
@@ -125,7 +155,7 @@ class Game {
     checkCollisions() {
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             if (this.player.checkBulletCollision(this.enemies[i])) {
-                this.createExplosion(this.enemies[i].x, this.enemies[i].y);
+                this.createExplosion(this.enemies[i].x + 20, this.enemies[i].y + 20);
                 this.enemies.splice(i, 1);
                 this.score += 10;
                 this.updateScore();
@@ -171,16 +201,16 @@ class Player {
         this.height = 50;
         this.x = game.canvas.width / 2 - this.width / 2;
         this.y = game.canvas.height - this.height - 20;
-        this.speed = 5;
+        this.speed = 0.2;
         this.bullets = [];
         this.lastShot = 0;
-        this.shotDelay = 300; // 0.3 секунды
+        this.shotDelay = 300;
     }
     
-    update() {
+    update(deltaTime) {
         // Движение
-        if (this.game.keys['ArrowLeft']) this.x = Math.max(0, this.x - this.speed);
-        if (this.game.keys['ArrowRight']) this.x = Math.min(this.game.canvas.width - this.width, this.x + this.speed);
+        if (this.game.keys['ArrowLeft']) this.x = Math.max(0, this.x - this.speed * deltaTime);
+        if (this.game.keys['ArrowRight']) this.x = Math.min(this.game.canvas.width - this.width, this.x + this.speed * deltaTime);
         
         // Стрельба
         const now = Date.now();
@@ -190,7 +220,7 @@ class Player {
         }
         
         // Обновление пуль
-        this.updateBullets();
+        this.updateBullets(deltaTime);
     }
     
     shoot() {
@@ -199,13 +229,13 @@ class Player {
             y: this.y,
             width: 5,
             height: 15,
-            speed: 10
+            speed: 0.3
         });
     }
     
-    updateBullets() {
+    updateBullets(deltaTime) {
         for (let i = this.bullets.length - 1; i >= 0; i--) {
-            this.bullets[i].y -= this.bullets[i].speed;
+            this.bullets[i].y -= this.bullets[i].speed * deltaTime;
             
             if (this.bullets[i].y < 0) {
                 this.bullets.splice(i, 1);
@@ -242,16 +272,17 @@ class Player {
     }
     
     checkBulletCollision(enemy) {
-        return this.bullets.some((bullet, bulletIndex) => {
+        for (let i = this.bullets.length - 1; i >= 0; i--) {
+            const bullet = this.bullets[i];
             if (bullet.x < enemy.x + enemy.width &&
                 bullet.x + bullet.width > enemy.x &&
                 bullet.y < enemy.y + enemy.height &&
                 bullet.y + bullet.height > enemy.y) {
-                this.bullets.splice(bulletIndex, 1);
+                this.bullets.splice(i, 1);
                 return true;
             }
-            return false;
-        });
+        }
+        return false;
     }
 }
 
@@ -262,12 +293,12 @@ class Enemy {
         this.height = 40;
         this.x = x;
         this.y = -this.height;
-        this.speed = 2 + Math.random() * 2;
+        this.speed = 0.1;
         this.color = `hsl(${Math.random() * 360}, 70%, 60%)`;
     }
     
-    update() {
-        this.y += this.speed;
+    update(deltaTime) {
+        this.y += this.speed * deltaTime;
     }
     
     draw() {
@@ -293,11 +324,11 @@ class Particle {
         this.alpha = 1;
     }
     
-    update() {
-        this.x += this.speedX;
-        this.y += this.speedY;
-        this.alpha -= 0.015;
-        this.size -= 0.1;
+    update(deltaTime) {
+        this.x += this.speedX * (deltaTime / 16);
+        this.y += this.speedY * (deltaTime / 16);
+        this.alpha -= 0.015 * (deltaTime / 16);
+        this.size -= 0.1 * (deltaTime / 16);
     }
     
     draw() {
@@ -311,5 +342,7 @@ class Particle {
     }
 }
 
-// Запуск игры
-const game = new Game();
+// Запуск игры когда страница загрузится
+window.addEventListener('load', () => {
+    const game = new Game();
+});
