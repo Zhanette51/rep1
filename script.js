@@ -64,7 +64,7 @@ class Game {
         }
         
         // Очистка экрана
-        this.ctx.fillStyle = 'black';
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
         // Рисуем звезды
@@ -88,7 +88,7 @@ class Game {
     }
     
     drawStars() {
-        this.ctx.fillStyle = 'white';
+        this.ctx.fillStyle = '#ffffff';
         for (let i = 0; i < 50; i++) {
             const x = Math.random() * this.canvas.width;
             const y = Math.random() * this.canvas.height;
@@ -126,31 +126,41 @@ class Game {
     }
     
     checkCollisions() {
-        // Проверяем столкновения пуль с врагами
-        for (let i = this.enemies.length - 1; i >= 0; i--) {
-            for (let j = this.player.bullets.length - 1; j >= 0; j--) {
+        // Создаем временные массивы для удаления
+        const enemiesToRemove = [];
+        const bulletsToRemove = [];
+        
+        // Проверяем столкновения
+        for (let i = 0; i < this.enemies.length; i++) {
+            for (let j = 0; j < this.player.bullets.length; j++) {
                 const enemy = this.enemies[i];
                 const bullet = this.player.bullets[j];
                 
-                if (bullet.x < enemy.x + enemy.width &&
+                if (bullet && enemy &&
+                    bullet.x < enemy.x + enemy.width &&
                     bullet.x + bullet.width > enemy.x &&
                     bullet.y < enemy.y + enemy.height &&
                     bullet.y + bullet.height > enemy.y) {
                     
-                    // Создаем взрыв
-                    this.createExplosion(enemy.x + 20, enemy.y + 20);
-                    
-                    // Удаляем врага и пулю
-                    this.enemies.splice(i, 1);
-                    this.player.bullets.splice(j, 1);
-                    
-                    // Добавляем очки
+                    // Помечаем для удаления
+                    enemiesToRemove.push(i);
+                    bulletsToRemove.push(j);
+                    this.createExplosion(enemy.x + enemy.width/2, enemy.y + enemy.height/2);
                     this.score += 10;
-                    this.updateScore();
-                    break;
                 }
             }
         }
+        
+        // Удаляем отмеченных врагов и пули (в обратном порядке)
+        for (let i = enemiesToRemove.length - 1; i >= 0; i--) {
+            this.enemies.splice(enemiesToRemove[i], 1);
+        }
+        
+        for (let i = bulletsToRemove.length - 1; i >= 0; i--) {
+            this.player.bullets.splice(bulletsToRemove[i], 1);
+        }
+        
+        this.updateScore();
     }
     
     createExplosion(x, y) {
