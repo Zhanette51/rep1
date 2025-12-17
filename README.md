@@ -22,9 +22,3 @@
 - [x] ООП подход с классами Game, Player, Enemy, Particle
 - [x] Адаптивный дизайн
 - [x] Кроссбраузерная совместимость
-
-## 🚀 Запуск проекта
-1. Клонируйте репозиторий:
-```bash
-git clone https://github.com/username/space-glider.git
-cd space-glider
